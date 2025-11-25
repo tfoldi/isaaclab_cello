@@ -69,4 +69,3 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
-scripts/rsl_rl/__pycache__/
