@@ -13,7 +13,7 @@ from . import agents
 
 
 gym.register(
-    id="Template-Cello-Reach-v0",
+    id="HCLTech-Cello-Reach-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
