@@ -16,7 +16,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
-
 from isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg import ReachEnvCfg
 
 from . import mdp
@@ -25,8 +24,7 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_cello.robots.cello import CELLO_CONFIG # isort:skip
-
+from isaaclab_cello.robots.cello import CELLO_CONFIG  # isort:skip
 
 
 @configclass
@@ -44,22 +42,34 @@ class CelloReachEnvCfg(ReachEnvCfg):
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["link6"]
         self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["link6"]
-        self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["link6"]
+        # self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["link6"]
+
+        # >> 1. POZÍCIÓ JUTALOM NÖVELÉSE
+        self.rewards.end_effector_position_tracking.weight = -1.0
+        self.rewards.end_effector_position_tracking_fine_grained.weight = 0.5
+
+        # >> 2. POSE JUTALOM KIKAPCSOLÁSA
+        self.rewards.end_effector_orientation_tracking = None
+
+        # >> 3. REGULÁRIS BÜNTETÉSEK NÖVELÉSE (A simaság érdekében)
+        self.rewards.action_rate.weight = -0.001
+        self.rewards.joint_vel.weight = -0.0005
+
         # override actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=[".*"], scale=0.2, use_default_offset=True
+            asset_name="robot", joint_names=[r"joint\d+$"], scale=0.2, use_default_offset=True
         )
         # override command generator body
         # end-effector is along x-direction
         self.commands.ee_pose.body_name = "link6"
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
-        self.commands.ee_pose.ranges.yaw = (math.pi/2, math.pi)
-        self.commands.ee_pose.ranges.pos_x=(-0.65, -0.35)
-        self.commands.ee_pose.ranges.pos_y=(-0.2, 0.2)
-        self.commands.ee_pose.ranges.pos_z=(0.15, 0.5)
-
-
-
+        self.commands.ee_pose.ranges.yaw = (math.pi, math.pi)
+        self.commands.ee_pose.ranges.pos_x = (-0.65, -0.15)
+        # self.commands.ee_pose.ranges.pos_x=(-0.65, -0.35)
+        # self.commands.ee_pose.ranges.pos_y=(-0.0, 0.0)
+        self.commands.ee_pose.ranges.pos_y = (-0.2, 0.2)
+        self.commands.ee_pose.ranges.pos_z = (0.15, 0.5)
+        self.commands.ee_pose.debug_vis = True
 
 
 @configclass

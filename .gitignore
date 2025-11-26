@@ -27,6 +27,11 @@
 docker/cluster/exports/
 docker/.container.cfg
 
+# Ros2
+ros_ws/build
+ros_ws/log
+ros_ws/install
+
 # IDE
 **/.idea/
 **/.vscode/
