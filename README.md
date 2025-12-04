@@ -32,6 +32,10 @@ It allows for isolated development and testing of the specific robotic reach tas
     \# use 'FULL\_PATH\_TO\_isaaclab.sh|bat \-p' instead of 'python' if Isaac Lab is not installed in Python venv or conda  
     python scripts/\<RL\_LIBRARY\>/train.py \--task=HCLTech-Cello-Reach-v0
 
+  * Replaying and exporting the policy:  
+    \# use 'FULL\_PATH\_TO\_isaaclab.sh|bat \-p' instead of 'python' if Isaac Lab is not installed in Python venv or conda  
+    python scripts/\<RL\_LIBRARY\>/play.py \--task=HCLTech-Cello-Reach-v0
+
   * Running the task with dummy agents:  
     These include dummy agents that output zero or random actions. They are useful to ensure that the environments are configured correctly.  
     * Zero-action agent  
