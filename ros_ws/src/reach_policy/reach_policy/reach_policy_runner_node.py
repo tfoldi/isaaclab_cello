@@ -260,7 +260,7 @@ class ReachPolicyRunnerNode(Node):
             return
 
         dist = np.linalg.norm(self.ee_pos - self.target_pos)
-        self.get_logger().warn(f"Distance: {dist}")
+        self.get_logger().debug(f"Distance: {dist}")
         if dist > 0.05:
             # 2. Calculate Action using the policy
             with torch.no_grad():
