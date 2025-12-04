@@ -150,7 +150,7 @@ class ReachPolicyRunnerNode(Node):
         """Updates the current End-Effector position and orientation."""
         self.ee_pos = np.array([msg.position.x, msg.position.y, msg.position.z])
         self.ee_ori = np.array(
-            [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+            [msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z]
         )
         self._calculate_errors()
 
@@ -259,36 +259,39 @@ class ReachPolicyRunnerNode(Node):
             self.get_logger().debug(f"Some observations were nan, skipping")
             return
 
+        dist = np.linalg.norm(self.ee_pos - self.target_pos)
+        self.get_logger().warn(f"Distance: {dist}")
+        if dist > 0.05:
+            # 2. Calculate Action using the policy
+            with torch.no_grad():
+                actions_raw = self.policy.forward(obs)[0].cpu()
+                if torch.isnan(actions_raw).any().item():
+                    self.get_logger().debug(f"Prediction has nan, skipping")
+                    return
 
-         # 2. Calculate Action using the policy
-        with torch.no_grad():
-            actions_raw = self.policy.forward(obs)[0].cpu()
-            if torch.isnan(actions_raw).any().item():
-                self.get_logger().debug(f"Prediction has nan, skipping")
-                return
+                actions_raw = actions_raw.numpy().flatten()
+                self.previous_action = actions_raw
+                
 
-            actions_raw = actions_raw.numpy().flatten()
-            self.previous_action = actions_raw
+            # 3. Process Action (Scaling)
+            action_scale = 0.1  # Confirmed by your environment config
+            #TODO: apply some smoothing based on distance
+            #action_scale = np.clip(action_scale * dist, 0.03, 0.2)
+            target_pos = self.default_joint_positions.copy()
+            target_pos[:6] += actions_raw * action_scale
             
+            # self.get_logger().info(f"Current POS: {current_pos}")
+            # self.get_logger().info(f"Arm Target POS: {target_pos}")
+            # self.get_logger().info(f"Target POS: {np.concatenate([self.target_pos, self.target_ori])}")
+            # 4. Send ROS2 message (as JointState!)
+            command_msg = JointState()
 
-        # 3. Process Action (Scaling)
-        action_scale = 0.1  # Confirmed by your environment config
+            command_msg.name = JOINT_NAMES  # Use the explicit 6 names we care about
+            command_msg.position = target_pos.tolist()
 
-        target_pos = self.default_joint_positions.copy()
-        target_pos[:6] += actions_raw * action_scale
-        
-        # self.get_logger().info(f"Current POS: {current_pos}")
-        # self.get_logger().info(f"Arm Target POS: {target_pos}")
-        # self.get_logger().info(f"Target POS: {np.concatenate([self.target_pos, self.target_ori])}")
-        # 4. Send ROS2 message (as JointState!)
-        command_msg = JointState()
+            command_msg.header.stamp = self.get_clock().now().to_msg()
 
-        command_msg.name = JOINT_NAMES  # Use the explicit 6 names we care about
-        command_msg.position = target_pos.tolist()
-
-        command_msg.header.stamp = self.get_clock().now().to_msg()
-
-        self.joint_command_pub.publish(command_msg)
+            self.joint_command_pub.publish(command_msg)
 
 
 def main(args=None):
