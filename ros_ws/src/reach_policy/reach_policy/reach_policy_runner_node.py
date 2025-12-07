@@ -8,13 +8,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import time
-from typing import Optional
-
 import numpy as np
 import rclpy
 import torch
-import torch.nn as nn
 from geometry_msgs.msg import (  # Used for EE position and Goal position (Note: PointStamped is replaced by PoseStamped)
     Pose,
     PoseStamped,
@@ -249,7 +245,7 @@ class ReachPolicyRunnerNode(Node):
         obs = self._get_observation()
 
         if torch.isnan(obs).any().item():
-            self.get_logger().debug(f"Some observations were nan, skipping")
+            self.get_logger().debug("Some observations were nan, skipping")
             return
 
         dist = np.linalg.norm(self.ee_pos - self.target_pos)
@@ -259,7 +255,7 @@ class ReachPolicyRunnerNode(Node):
             with torch.no_grad():
                 actions_raw = self.policy.forward(obs)[0].cpu()
                 if torch.isnan(actions_raw).any().item():
-                    self.get_logger().debug(f"Prediction has nan, skipping")
+                    self.get_logger().debug("Prediction has nan, skipping")
                     return
 
                 actions_raw = actions_raw.numpy().flatten()

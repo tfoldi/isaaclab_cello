@@ -10,16 +10,6 @@
 
 import math
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
-from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg import ReachEnvCfg
 
@@ -49,23 +39,20 @@ class CelloReachEnvCfg(ReachEnvCfg):
         self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["link6"]
         # self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["link6"]
 
-        # >> 1. POZÍCIÓ JUTALOM NÖVELÉSE
+        # >> 1. position reward increase
         self.rewards.end_effector_position_tracking.weight = -1.0
         self.rewards.end_effector_position_tracking_fine_grained.weight = 0.5
 
-        # >> 2. POSE JUTALOM KIKAPCSOLÁSA
+        # >> 2. turn off pose reward
         self.rewards.end_effector_orientation_tracking = None
 
-        # >> 3. REGULÁRIS BÜNTETÉSEK NÖVELÉSE (A simaság érdekében)
+        # >> 3. reduce action rate and joint vel penalty
         self.rewards.action_rate.weight = -0.001
         self.rewards.joint_vel.weight = -0.0005
 
         # override actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot",
-            joint_names=[r"joint\d+$"],
-            scale=0.2,
-            use_default_offset=True,
+            asset_name="robot", joint_names=[r"joint\d+$"], scale=0.2, use_default_offset=True
         )
         # override command generator body
         # end-effector is along x-direction
