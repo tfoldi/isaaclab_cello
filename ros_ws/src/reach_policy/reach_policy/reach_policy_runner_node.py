@@ -13,98 +13,37 @@ from typing import Optional
 
 # --- CONFIGURATION ---
 # ATTENTION: Replace the policy path and joint names!
-POLICY_PATH = "/home/tfoldi/Developer/nvidia/isaaclab_cello/isaaclab_cello/logs/rsl_rl/reach_cello/2025-11-25_12-19-59/model_999.pt"
 CONTROL_FREQ = 60.0  # Hz (Training frequency)
-# This list MUST exactly match the names of the 6 joints the policy was trained on
-# The filtering logic will IGNORE joint7_left and joint8_right from the /joint_states topic.
-JOINT_NAMES = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]
+
+
+JOINT_NAMES = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7_left", "joint7_right"]
 # OBS_DIM is confirmed to be 29
 OBS_DIM = 29
 ACTION_DIM = 6  # Action size: (delta_joint_position for 6 joints)
-
-# --- POLICY MODEL ARCHITECTURE (STRUCTURAL FIX APPLIED) ---
-# The component is named 'actor' to match the key naming convention in the checkpoint file.
-class PolicyModel(nn.Module):
-    # hidden_sizes is confirmed to be [64, 64]
-    def __init__(self, obs_dim, action_dim, hidden_sizes=[64, 64]):
-        super().__init__()
-
-        layers = []
-        in_size = obs_dim
-        for h_size in hidden_sizes:
-            layers.append(nn.Linear(in_size, h_size))
-            layers.append(nn.ReLU())
-            in_size = h_size
-
-        # Final layer maps to action space
-        layers.append(nn.Linear(in_size, action_dim))
-
-        # This name must match the prefix in the checkpoint keys ('actor.0.weight')
-        self.actor = nn.Sequential(*layers)
-
-    def act(self, observations):
-        """Forward pass to compute actions."""
-        return self.actor(observations)
 
 
 class ReachPolicyRunnerNode(Node):
     def __init__(self):
         super().__init__("reach_policy_runner_node")
+
+        self.policy_path = self.declare_parameter(
+            "policy_path", ""
+        ).value
         self.get_logger().info(
-            f"Reach Policy Runner node started. Loading policy from: {POLICY_PATH}"
+            f"Reach Policy Runner node started. Loading policy from: {self.policy_path}"
         )
+
+        if self.policy_path == "":
+            self.get_logger().error(
+                "Parameter 'policy_path' must be provided to load a TorchScript policy."
+            )
+            self.destroy_node()
+            rclpy.shutdown()
+            raise SystemExit(1)
 
         # 1. Load Policy
         try:
-            # First, instantiate the model architecture
-            self.policy_model = PolicyModel(OBS_DIM, ACTION_DIM)
-
-            # Load the full checkpoint dictionary
-            checkpoint = torch.load(POLICY_PATH, map_location="cpu")
-
-            policy_state_dict = None
-
-            # Case 2: Common RSL-RL case: full Actor-Critic state dict is under 'model_state_dict'
-            if "model_state_dict" in checkpoint:
-                full_state_dict = checkpoint["model_state_dict"]
-                self.get_logger().info(
-                    "Found full Actor-Critic weights under 'model_state_dict'. Filtering Actor keys..."
-                )
-
-                # Filter the state dictionary to keep only keys starting with 'actor.'
-                policy_state_dict = {
-                    k: v for k, v in full_state_dict.items() if k.startswith("actor.")
-                }
-
-            # Fallback for other checkpoint structures
-            elif "actor_state_dict" in checkpoint:
-                policy_state_dict = checkpoint["actor_state_dict"]
-                self.get_logger().info("Found policy weights under 'actor_state_dict'.")
-            elif "model" in checkpoint and isinstance(checkpoint["model"], dict):
-                full_state_dict = checkpoint["model"]
-                self.get_logger().info(
-                    "Found full Actor-Critic weights under 'model'. Filtering Actor keys..."
-                )
-                policy_state_dict = {
-                    k: v for k, v in full_state_dict.items() if k.startswith("actor.")
-                }
-            else:
-                key_list = list(checkpoint.keys())
-                raise KeyError(
-                    f"Policy checkpoint file structure not recognized. Found keys: {key_list}"
-                )
-
-            if policy_state_dict:
-                # Load the filtered/actor-only state dictionary into the model
-                self.policy_model.load_state_dict(policy_state_dict)
-                self.get_logger().info(
-                    "Policy state dict successfully loaded after filtering/renaming."
-                )
-
-            self.policy = (
-                self.policy_model
-            )  # Set the running policy to the loaded model
-            self.policy.eval()  # Set to evaluation mode
+            self.policy = torch.jit.load(self.policy_path, map_location="cpu")
 
         except Exception as e:
             self.get_logger().error(f"Failed to load policy: {e}")
@@ -117,8 +56,8 @@ class ReachPolicyRunnerNode(Node):
         self.raw_joint_state.velocity = []
 
         # Filtered joint state (6 dimensions) used for observation and commanding
-        self.filtered_joint_pos = np.zeros(ACTION_DIM)
-        self.filtered_joint_vel = np.zeros(ACTION_DIM)
+        self.filtered_joint_pos = np.zeros(len(JOINT_NAMES))
+        self.filtered_joint_vel = np.zeros(len(JOINT_NAMES))
 
         # State variables for the 29-feature observation
         # 6+6 + 3+3 + 3 + 4+4 = 29
@@ -127,6 +66,9 @@ class ReachPolicyRunnerNode(Node):
         self.pos_error = np.zeros(3)  # Positional Error (3)
         self.ee_ori = np.array([0.0, 0.0, 0.0, 1.0])  # Current EE Orientation (4-Quat)
         self.target_ori = np.array([0.0, 0.0, 0.0, 1.0])  # Target Orientation (4-Quat)
+        self.previous_action = np.zeros(6)
+
+        self.default_joint_positions = np.array([0.014, -0.0034, -0.005, 0.0209, -0.0053, -0.0035, -0.015, -0.015])
 
         # 2. ROS2 Communication
         # Subscriber 1: Robot joint state (position and velocity)
@@ -208,7 +150,7 @@ class ReachPolicyRunnerNode(Node):
         """Updates the current End-Effector position and orientation."""
         self.ee_pos = np.array([msg.position.x, msg.position.y, msg.position.z])
         self.ee_ori = np.array(
-            [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+            [msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z]
         )
         self._calculate_errors()
 
@@ -222,10 +164,10 @@ class ReachPolicyRunnerNode(Node):
         self.target_pos = np.array([pose.position.x, pose.position.y, pose.position.z])
         self.target_ori = np.array(
             [
+                pose.orientation.w,
                 pose.orientation.x,
                 pose.orientation.y,
                 pose.orientation.z,
-                pose.orientation.w,
             ]
         )
         self._calculate_errors()
@@ -246,21 +188,51 @@ class ReachPolicyRunnerNode(Node):
         Total: 6 + 6 + 3 + 3 + 3 + 4 + 4 = 29
         """
         # Use the pre-filtered 6-dimensional arrays
-        joint_pos = self.filtered_joint_pos  # (6)
-        joint_vel = self.filtered_joint_vel  # (6)
+        joint_pos = self.filtered_joint_pos - self.default_joint_positions  # (8)
+        joint_vel = self.filtered_joint_vel  # (8)
 
         # Construct the 29-feature observation vector
+
+        """
+        [INFO] Observation Manager: <ObservationManager> contains 1 groups.
+        +-------------------------------------------------------+
+        | Active Observation Terms in Group: 'policy' (shape: (29,)) |
+        +-------------+---------------------------+-------------+
+        |    Index    | Name                      |    Shape    |
+        +-------------+---------------------------+-------------+
+        |      0      | joint_pos                 |     (8,)    |
+        |      1      | joint_vel                 |     (8,)    |
+        |      2      | pose_command              |     (7,)    |
+        |      3      | actions                   |     (6,)    |
+        +-------------+---------------------------+-------------+
+        
+        """
+
+
         obs_np = np.concatenate(
             [
-                joint_pos,  # 6
-                joint_vel,  # 6
-                self.ee_pos,  # 3
+                joint_pos,  # 6 -- 8
+                joint_vel,  # 6 -- 8
+                #self.ee_pos,  # 3
                 self.target_pos,  # 3
-                self.pos_error,  # 3
-                self.ee_ori,  # 4 (Quaternion)
+                #self.pos_error,  # 3
+                #self.ee_ori,  # 4 (Quaternion)
                 self.target_ori,  # 4 (Quaternion)
+                self.previous_action         
             ]
         )
+
+        # component_sizes = ", ".join(
+        #     f"{name}:{len(component)}"
+        #     for name, component in (
+        #         ("joint_pos", joint_pos),
+        #         ("joint_vel", joint_vel),
+        #         ("target_pos", self.target_pos),
+        #         ("target_ori", self.target_ori),
+        #         ("previous_action", self.previous_action),
+        #     )
+        # )
+        # self.get_logger().info(f"Observation component sizes -> {component_sizes}")
 
         if len(obs_np) != OBS_DIM:
             # This check is now an explicit failure condition if filtering failed
@@ -281,28 +253,45 @@ class ReachPolicyRunnerNode(Node):
         # 1. Get Observation
         obs = self._get_observation()
 
-        # 2. Calculate Action using the policy
-        with torch.no_grad():
-            actions_raw = self.policy.act(obs)[0].cpu().numpy().flatten()
+       
 
-        # 3. Process Action (Scaling)
-        action_scale = 0.2  # Confirmed by your environment config
-        # Use the filtered joint positions (now guaranteed to be (6,))
-        current_pos = self.filtered_joint_pos
+        if torch.isnan(obs).any().item():
+            self.get_logger().debug(f"Some observations were nan, skipping")
+            return
 
-        delta_pos = actions_raw * action_scale
-        # This addition should now work: (6,) + (6,) = (6,)
-        target_pos = current_pos + delta_pos
+        dist = np.linalg.norm(self.ee_pos - self.target_pos)
+        self.get_logger().debug(f"Distance: {dist}")
+        if dist > 0.05:
+            # 2. Calculate Action using the policy
+            with torch.no_grad():
+                actions_raw = self.policy.forward(obs)[0].cpu()
+                if torch.isnan(actions_raw).any().item():
+                    self.get_logger().debug(f"Prediction has nan, skipping")
+                    return
 
-        # 4. Send ROS2 message (as JointState!)
-        command_msg = JointState()
+                actions_raw = actions_raw.numpy().flatten()
+                self.previous_action = actions_raw
+                
 
-        command_msg.name = JOINT_NAMES  # Use the explicit 6 names we care about
-        command_msg.position = target_pos.tolist()
+            # 3. Process Action (Scaling)
+            action_scale = 0.1  # Confirmed by your environment config
+            #TODO: apply some smoothing based on distance
+            #action_scale = np.clip(action_scale * dist, 0.03, 0.2)
+            target_pos = self.default_joint_positions.copy()
+            target_pos[:6] += actions_raw * action_scale
+            
+            # self.get_logger().info(f"Current POS: {current_pos}")
+            # self.get_logger().info(f"Arm Target POS: {target_pos}")
+            # self.get_logger().info(f"Target POS: {np.concatenate([self.target_pos, self.target_ori])}")
+            # 4. Send ROS2 message (as JointState!)
+            command_msg = JointState()
 
-        command_msg.header.stamp = self.get_clock().now().to_msg()
+            command_msg.name = JOINT_NAMES  # Use the explicit 6 names we care about
+            command_msg.position = target_pos.tolist()
 
-        self.joint_command_pub.publish(command_msg)
+            command_msg.header.stamp = self.get_clock().now().to_msg()
+
+            self.joint_command_pub.publish(command_msg)
 
 
 def main(args=None):
