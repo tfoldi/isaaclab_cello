@@ -19,9 +19,7 @@ parser.add_argument(
     default=False,
     help="Disable fabric and use USD I/O operations.",
 )
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -63,9 +61,7 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # sample actions from -1 to 1
-            actions = (
-                2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-            )
+            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
             # apply actions
             env.step(actions)
 

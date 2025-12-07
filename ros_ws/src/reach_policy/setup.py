@@ -22,8 +22,6 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [
-            "reach_policy_runner_node = reach_policy.reach_policy_runner_node:main"
-        ],
+        "console_scripts": ["reach_policy_runner_node = reach_policy.reach_policy_runner_node:main"],
     },
 )
