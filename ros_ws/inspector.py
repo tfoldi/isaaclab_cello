@@ -1,3 +1,13 @@
+# Copyright (c) 2025, Tamas Foldi and Istvan Fodor
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import torch
 
 policy_path = "/home/tfoldi/Developer/nvidia/isaaclab_cello/isaaclab_cello/logs/rsl_rl/reach_cello/2025-11-25_12-19-59/model_999.pt"
