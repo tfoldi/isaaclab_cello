@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+import math
 
 import numpy as np
 import rclpy
@@ -16,6 +13,9 @@ from geometry_msgs.msg import (  # Used for EE position and Goal position (Note:
     PoseStamped,
 )
 from rclpy.node import Node
+from robo_interfaces.msg import (
+    SetAngle,  # Used for sending joint commands to actual robot
+)
 from sensor_msgs.msg import JointState  # Used for both command and state messages
 
 # --- CONFIGURATION ---
@@ -63,7 +63,7 @@ class ReachPolicyRunnerNode(Node):
         # State variables for the 29-feature observation
         # 6+6 + 3+3 + 3 + 4+4 = 29
         self.ee_pos = np.zeros(3)  # Current End-Effector Position (3)
-        self.target_pos = np.zeros(3)  # Target Position (3)
+        self.target_pos = [-0.2, -0.2, 0.3]  # Target Position (3)
         self.pos_error = np.zeros(3)  # Positional Error (3)
         self.ee_ori = np.array([0.0, 0.0, 0.0, 1.0])  # Current EE Orientation (4-Quat)
         self.target_ori = np.array([0.0, 0.0, 0.0, 1.0])  # Target Orientation (4-Quat)
@@ -95,6 +95,8 @@ class ReachPolicyRunnerNode(Node):
         # Publisher: Send joint commands
         self.joint_command_pub = self.create_publisher(JointState, "/joint_command", 10)
 
+        self.set_angle_pub = self.create_publisher(SetAngle, "/set_angle_topic", 10)
+
         # 3. RL Loop (Timer)
         self.timer = self.create_timer(1.0 / CONTROL_FREQ, self._rl_loop)
         self.get_logger().info(f"RL control loop started at {CONTROL_FREQ} Hz.")
@@ -115,12 +117,14 @@ class ReachPolicyRunnerNode(Node):
         for name in JOINT_NAMES:
             if name in joint_map:
                 index = joint_map[name]
+                if index >= len(msg.position) or index >= len(msg.velocity):
+                    self.get_logger().debug(f"Index {index} for joint '{name}' is out of bounds in the JointState message.")
                 # Extract the data at the corresponding index
-                filtered_pos.append(msg.position[index])
-                filtered_vel.append(msg.velocity[index])
+                filtered_pos.append(msg.position[index] if index < len(msg.position) else 0.0)
+                filtered_vel.append(msg.velocity[index] if index < len(msg.velocity) else 0.0)
             else:
                 # If a required joint is missing, log a warning and use a zero value
-                self.get_logger().warn(f"Required joint '{name}' not found in /joint_states message. Using 0.0.")
+                self.get_logger().debug(f"Required joint '{name}' not found in /joint_states message. Using 0.0.")
                 filtered_pos.append(0.0)
                 filtered_vel.append(0.0)
 
@@ -262,7 +266,7 @@ class ReachPolicyRunnerNode(Node):
                 self.previous_action = actions_raw
 
             # 3. Process Action (Scaling)
-            action_scale = 0.1  # Confirmed by your environment config
+            action_scale = 0.05  # Confirmed by your environment config
             # TODO: apply some smoothing based on distance
             # action_scale = np.clip(action_scale * dist, 0.03, 0.2)
             target_pos = self.default_joint_positions.copy()
@@ -280,6 +284,22 @@ class ReachPolicyRunnerNode(Node):
             command_msg.header.stamp = self.get_clock().now().to_msg()
 
             self.joint_command_pub.publish(command_msg)
+
+            self.set_angle_pub.publish(
+                SetAngle(
+                    servo_id=[0, 1, 2, 3, 4, 5],
+                    target_angle=[radians_to_degrees(target_pos[0]),
+                                  radians_to_degrees(target_pos[1]),
+                                  radians_to_degrees(target_pos[2]),
+                                  radians_to_degrees(target_pos[3]),
+                                  radians_to_degrees(target_pos[4]),
+                                  radians_to_degrees(target_pos[5])],
+                    time=[100, 100, 100, 100, 100, 100],
+                )
+            )
+
+def radians_to_degrees(radians):
+    return radians * (180 / math.pi)
 
 
 def main(args=None):

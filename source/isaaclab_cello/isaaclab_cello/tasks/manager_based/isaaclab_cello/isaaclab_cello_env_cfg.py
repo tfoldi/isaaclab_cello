@@ -59,11 +59,9 @@ class CelloReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.body_name = "link6"
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
         self.commands.ee_pose.ranges.yaw = (math.pi, math.pi)
-        self.commands.ee_pose.ranges.pos_x = (-0.65, -0.15)
-        # self.commands.ee_pose.ranges.pos_x=(-0.65, -0.35)
-        # self.commands.ee_pose.ranges.pos_y=(-0.0, 0.0)
-        self.commands.ee_pose.ranges.pos_y = (-0.2, 0.2)
-        self.commands.ee_pose.ranges.pos_z = (0.15, 0.5)
+        self.commands.ee_pose.ranges.pos_x = (-0.65, -0.65)
+        self.commands.ee_pose.ranges.pos_y = (-0.65, 0.65)
+        self.commands.ee_pose.ranges.pos_z = (0.0, 0.5)
         self.commands.ee_pose.debug_vis = True
 
 
