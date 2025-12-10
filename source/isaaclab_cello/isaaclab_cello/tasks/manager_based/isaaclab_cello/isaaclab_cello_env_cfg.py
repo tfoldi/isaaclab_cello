@@ -31,7 +31,8 @@ class CelloReachEnvCfg(ReachEnvCfg):
         # switch robot to Cello
         self.scene.robot = CELLO_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # override events
-        self.scene.robot.init_state.pos = (0.17, 0.0, 0.2)
+        # self.scene.robot.init_state.pos = (0.17, 0.0, 0.2)
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
         self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
         # override rewards
@@ -59,9 +60,9 @@ class CelloReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.body_name = "link6"
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
         self.commands.ee_pose.ranges.yaw = (math.pi, math.pi)
-        self.commands.ee_pose.ranges.pos_x = (-0.65, -0.65)
-        self.commands.ee_pose.ranges.pos_y = (-0.65, 0.65)
-        self.commands.ee_pose.ranges.pos_z = (0.0, 0.5)
+        self.commands.ee_pose.ranges.pos_x = (-0.5, 0.3)
+        self.commands.ee_pose.ranges.pos_y = (-0.4, 0.4)
+        self.commands.ee_pose.ranges.pos_z = (0.0, 0.35)
         self.commands.ee_pose.debug_vis = True
 
 
