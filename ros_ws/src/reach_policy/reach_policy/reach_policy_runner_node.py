@@ -118,7 +118,9 @@ class ReachPolicyRunnerNode(Node):
             if name in joint_map:
                 index = joint_map[name]
                 if index >= len(msg.position) or index >= len(msg.velocity):
-                    self.get_logger().debug(f"Index {index} for joint '{name}' is out of bounds in the JointState message.")
+                    self.get_logger().debug(
+                        f"Index {index} for joint '{name}' is out of bounds in the JointState message."
+                    )
                 # Extract the data at the corresponding index
                 filtered_pos.append(msg.position[index] if index < len(msg.position) else 0.0)
                 filtered_vel.append(msg.velocity[index] if index < len(msg.velocity) else 0.0)
@@ -288,15 +290,18 @@ class ReachPolicyRunnerNode(Node):
             self.set_angle_pub.publish(
                 SetAngle(
                     servo_id=[0, 1, 2, 3, 4, 5],
-                    target_angle=[radians_to_degrees(target_pos[0]),
-                                  radians_to_degrees(target_pos[1]),
-                                  radians_to_degrees(target_pos[2]),
-                                  radians_to_degrees(target_pos[3]),
-                                  radians_to_degrees(target_pos[4]),
-                                  radians_to_degrees(target_pos[5])],
+                    target_angle=[
+                        radians_to_degrees(target_pos[0]),
+                        radians_to_degrees(target_pos[1]),
+                        radians_to_degrees(target_pos[2]),
+                        radians_to_degrees(target_pos[3]),
+                        radians_to_degrees(target_pos[4]),
+                        radians_to_degrees(target_pos[5]),
+                    ],
                     time=[100, 100, 100, 100, 100, 100],
                 )
             )
+
 
 def radians_to_degrees(radians):
     return radians * (180 / math.pi)
